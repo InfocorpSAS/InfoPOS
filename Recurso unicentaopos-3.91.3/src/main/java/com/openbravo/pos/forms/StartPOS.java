@@ -32,6 +32,10 @@ import javax.swing.UnsupportedLookAndFeelException;
 import org.pushingpixels.substance.api.SubstanceLookAndFeel;
 import org.pushingpixels.substance.api.SubstanceSkin;
 import com.openbravo.pos.ticket.TicketInfo;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import javax.swing.JOptionPane;
 
 
 // JG 16 May 2013 deprecated for pushingpixels
@@ -82,10 +86,28 @@ public class StartPOS {
                 if (!registerApp()) {
                     System.exit(1);
                 }
-                
                 AppConfig config = new AppConfig(args);
                 config.load();
                 
+                // Mayo 27 de 2016 validar licencia
+                Date fecha = new Date();
+                SimpleDateFormat formatoDelTexto = new SimpleDateFormat("yyyy-MM-dd");
+                String userExpire = config.getProperty("user.expireDate");
+                if( userExpire  == null){
+                    JOptionPane.showMessageDialog(null, "Licencia invalida, comuniquese con el administrador del sistema.");
+                    System.exit(1);
+                }
+                Date fechaExpira;
+                try {
+                    fechaExpira = formatoDelTexto.parse(userExpire);
+                    if( fechaExpira.before(fecha) ){
+                        JOptionPane.showMessageDialog(null, "Licencia Expirada, comuniquese con el administrador del sistema.");
+                        System.exit(1);
+                    }
+                } catch (ParseException ex) {
+                    JOptionPane.showMessageDialog(null, "Licencia invalida.");
+                    System.exit(1);
+                }
                 // set Locale.
                 String slang = config.getProperty("user.language");
                 String scountry = config.getProperty("user.country");
