@@ -205,9 +205,6 @@
                             <Property name="minimumSize" type="java.awt.Dimension" editor="org.netbeans.beaninfo.editors.DimensionEditor">
                               <Dimension value="[85, 44]"/>
                             </Property>
-                            <Property name="preferredSize" type="java.awt.Dimension" editor="org.netbeans.beaninfo.editors.DimensionEditor">
-                              <Dimension value="[85, 40]"/>
-                            </Property>
                             <Property name="requestFocusEnabled" type="boolean" value="false"/>
                           </Properties>
                           <Events>
