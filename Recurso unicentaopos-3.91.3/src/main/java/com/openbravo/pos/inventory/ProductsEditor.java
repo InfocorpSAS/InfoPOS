@@ -21,6 +21,7 @@ package com.openbravo.pos.inventory;
 
 import com.openbravo.basic.BasicException;
 import com.openbravo.data.gui.ComboBoxValModel;
+import com.openbravo.data.gui.MessageInf;
 import com.openbravo.data.loader.SentenceList;
 import com.openbravo.data.user.DirtyManager;
 import com.openbravo.data.user.EditorRecord;
@@ -28,15 +29,22 @@ import com.openbravo.format.Formats;
 import com.openbravo.pos.forms.AppLocal;
 import com.openbravo.pos.forms.DataLogicSales;
 import com.openbravo.pos.sales.TaxesLogic;
+import com.openbravo.pos.ticket.ProductAux;
+import com.openbravo.pos.ticket.ProductInfoExt;
 import java.awt.Component;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.Vector;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.AbstractTableModel;
 
 /**
  *
@@ -61,6 +69,11 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     private boolean priceselllock = false;
 
     private boolean reportlock = false;
+    
+    private final DataLogicSales dlSales;
+    private String id_product;
+    
+    private ProductoAuxiliaryModel  dataModel = new ProductoAuxiliaryModel(new Vector());
 
 // JG Mar 14 - Preparing for direct Printer assign rather than script
 //    private Object m_Printkb; - use this for printernumber
@@ -73,6 +86,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     public ProductsEditor(DataLogicSales dlSales, DirtyManager dirty) {
         initComponents();
 
+        this.dlSales = dlSales;
         // Taxes sentence
         taxsent = dlSales.getTaxList();
 
@@ -235,7 +249,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     }
 
     /**
-     *
+     * @spawn Perapara un objeto nuevo tipo producto en la presentacion vacio.
      */
     @Override
     public void writeValueInsert() {
@@ -302,7 +316,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         m_jCheckWarrantyReceipt.setEnabled(true);
 	m_jStockUnits.setVisible(false);         
 
-        m_jPriceSellTax.setEnabled(true);
+        m_jPriceSellTax.setEnabled(true);                       
         m_jmargin.setEnabled(true);
 
         m_jInCatalog.setEnabled(true);
@@ -311,7 +325,13 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         calculateMargin();
         calculatePriceSellTax();
         calculateGP();
+        deshabilitarSubproductos();
    }
+    
+    
+    private void deshabilitarSubproductos(){
+        jTabbedPane1.setEnabledAt(5, false);
+    }
     
 /**
      *
@@ -358,7 +378,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
 
 
     /**
-     *
+     * @spawn Metodo que setea el objeto en la vista.
      * @param value
      */
     @Override
@@ -438,7 +458,28 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         setButtonHTML();        
         calculateMargin();
         calculatePriceSellTax();
-        calculateGP();        
+        calculateGP();
+        habilitarSubProductos();
+    }
+    
+    
+    /**
+     * Metodo que habilita el tab de subproductos
+     */
+    
+    private void habilitarSubProductos(){
+        try {   
+            jTabbedPane1.setEnabledAt(5, true);
+            dataModel = new ProductoAuxiliaryModel(new Vector());
+            tableSubProduct.setModel(dataModel);
+            List<ProductAux> listProductsAux =  dlSales.getProductsAuxiliaryList(m_id.toString());
+            for (ProductAux productAux : listProductsAux) {
+                dataModel.addRow(productAux);
+            }
+        } catch (Exception e) {
+            MessageInf msg = new MessageInf(e);
+            msg.show(this);
+        }
     }
     
     /**
@@ -690,6 +731,8 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         }
     }
 
+    
+
     private class PriceSellManager implements DocumentListener {
         @Override
         public void changedUpdate(DocumentEvent e) {
@@ -811,6 +854,79 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
             return null;
         }
     }
+    
+    private void assignProduct(ProductInfoExt prod) {
+
+        if (btn_add.isEnabled()) {
+            if (prod == null) {
+                id_product = null;
+                sub_productName.setText(null);
+                sub_productRef.setText(null);
+                sub_productCodeBar.setText(null);              
+            } else {
+                id_product = prod.getID();
+                sub_productName.setText(prod.getName());
+                sub_productRef.setText(prod.getReference());
+                sub_productCodeBar.setText(prod.getCode());
+            }
+        }
+
+    }
+    
+    private void assignProductByReference() {
+        try {
+            ProductInfoExt prod = dlSales.getProductInfoByReference(sub_productRef.getText());
+            assignProduct(prod);
+            if (prod == null) {
+                Toolkit.getDefaultToolkit().beep(); 
+                //FIXME Cambiar mensaje de error
+                JOptionPane.showMessageDialog(this,"No hay Productos");
+            }
+        } catch (BasicException eData) {
+            assignProduct(null);
+            MessageInf msg = new MessageInf(eData);
+            msg.show(this);
+        }
+    }
+    
+    
+    private void addProductTable() {
+        try {
+            if(id_product  != null){
+                String IdProductAuxiliary = UUID.randomUUID().toString();
+                ProductAux product = new ProductAux(IdProductAuxiliary , m_id.toString(), id_product, sub_productRef.getText(), sub_productCodeBar.getText(), sub_productName.getText());
+                ((ProductoAuxiliaryModel)tableSubProduct.getModel()).addRow(product);
+                dlSales.getProductAuxiliaryAdd().exec(new Object[]{product.getID(), product.getProduct(), product.getProducAux()});
+                id_product = null;
+                sub_productRef.setText(null);
+                sub_productCodeBar.setText(null);
+                sub_productName.setText(null);
+            }else{
+                throw  new Exception("Debe Seleccionar un producto");
+            }
+        } catch (Exception e) {
+            MessageInf msg = new MessageInf(e);
+            msg.show(this);
+        }
+    }
+    
+    
+    private void removeProductTable(int row) {
+            
+        try {
+        if(row >= 0) {
+                ProductoAuxiliaryModel model = ((ProductoAuxiliaryModel) tableSubProduct.getModel());
+                ProductAux producto = (ProductAux) model.getRow(row);
+                dlSales.getProductAuxiliaryDel().exec(producto.getID());
+                model.removeRow(row);
+            } else {
+                throw  new Exception("Debe selecionar un Producto de la tabla");
+            }
+        } catch (Exception e) {
+            MessageInf msg = new MessageInf(e);
+            msg.show(this);
+        }
+    }
 
     /** This method is called from within the constructor to
      * initialize the form.
@@ -893,6 +1009,19 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         jPanel3 = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
         txtAttributes = new javax.swing.JTextArea();
+        jPanel6 = new javax.swing.JPanel();
+        jPanel7 = new javax.swing.JPanel();
+        jLabel35 = new javax.swing.JLabel();
+        sub_productName = new javax.swing.JTextField();
+        sub_productRef = new javax.swing.JTextField();
+        jLabel34 = new javax.swing.JLabel();
+        sub_productCodeBar = new javax.swing.JTextField();
+        jLabel33 = new javax.swing.JLabel();
+        btn_add = new javax.swing.JButton();
+        m_jSearch1 = new javax.swing.JButton();
+        btn_remove = new javax.swing.JButton();
+        jScrollPane3 = new javax.swing.JScrollPane();
+        tableSubProduct = new javax.swing.JTable();
 
         jLabel24.setText("jLabel24");
 
@@ -903,7 +1032,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         m_jTitle.setFont(new java.awt.Font("Tahoma", 1, 12)); // NOI18N
         m_jTitle.setHorizontalAlignment(javax.swing.SwingConstants.RIGHT);
         add(m_jTitle);
-        m_jTitle.setBounds(310, 0, 240, 20);
+        m_jTitle.setBounds(360, 0, 210, 20);
 
         jTabbedPane1.setFont(new java.awt.Font("Arial", 0, 12)); // NOI18N
 
@@ -1048,7 +1177,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
             }
         });
         jPanel1.add(m_jVerpatrib);
-        m_jVerpatrib.setBounds(310, 130, 120, 23);
+        m_jVerpatrib.setBounds(310, 130, 120, 24);
 
         m_jTextTip.setFont(new java.awt.Font("Arial", 0, 12)); // NOI18N
         jPanel1.add(m_jTextTip);
@@ -1067,7 +1196,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
             }
         });
         jPanel1.add(m_jCheckWarrantyReceipt);
-        m_jCheckWarrantyReceipt.setBounds(130, 290, 310, 23);
+        m_jCheckWarrantyReceipt.setBounds(130, 290, 310, 24);
 
         m_jGrossProfit.setFont(new java.awt.Font("Arial", 0, 12)); // NOI18N
         m_jGrossProfit.setHorizontalAlignment(javax.swing.JTextField.RIGHT);
@@ -1343,6 +1472,117 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
 
         jTabbedPane1.addTab(AppLocal.getIntString("label.properties"), jPanel3); // NOI18N
 
+        jLabel35.setText("Nombre");
+
+        jLabel34.setText("Referencia");
+
+        jLabel33.setText("Codigo Barras");
+
+        btn_add.setIcon(new javax.swing.ImageIcon(getClass().getResource("/com/openbravo/images/viewmag+.png"))); // NOI18N
+        btn_add.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_addActionPerformed(evt);
+            }
+        });
+
+        m_jSearch1.setIcon(new javax.swing.ImageIcon(getClass().getResource("/com/openbravo/images/search24.png"))); // NOI18N
+        m_jSearch1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                m_jSearch1ActionPerformed(evt);
+            }
+        });
+
+        btn_remove.setIcon(new javax.swing.ImageIcon(getClass().getResource("/com/openbravo/images/viewmag-.png"))); // NOI18N
+        btn_remove.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_removeActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout jPanel7Layout = new javax.swing.GroupLayout(jPanel7);
+        jPanel7.setLayout(jPanel7Layout);
+        jPanel7Layout.setHorizontalGroup(
+            jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel7Layout.createSequentialGroup()
+                .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel7Layout.createSequentialGroup()
+                        .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel7Layout.createSequentialGroup()
+                                .addContainerGap()
+                                .addComponent(jLabel35))
+                            .addComponent(jLabel34))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel7Layout.createSequentialGroup()
+                                .addComponent(sub_productRef, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 40, Short.MAX_VALUE)
+                                .addComponent(jLabel33)
+                                .addGap(18, 18, 18)
+                                .addComponent(sub_productCodeBar, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addGroup(jPanel7Layout.createSequentialGroup()
+                                .addComponent(sub_productName, javax.swing.GroupLayout.PREFERRED_SIZE, 289, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(0, 0, Short.MAX_VALUE))))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel7Layout.createSequentialGroup()
+                        .addGap(0, 0, Short.MAX_VALUE)
+                        .addComponent(btn_add)
+                        .addGap(31, 31, 31)
+                        .addComponent(btn_remove)))
+                .addContainerGap())
+            .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel7Layout.createSequentialGroup()
+                    .addContainerGap(476, Short.MAX_VALUE)
+                    .addComponent(m_jSearch1)
+                    .addGap(16, 16, 16)))
+        );
+        jPanel7Layout.setVerticalGroup(
+            jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel7Layout.createSequentialGroup()
+                .addGap(22, 22, 22)
+                .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(sub_productName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel35))
+                .addGap(18, 18, 18)
+                .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(sub_productRef, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel34)
+                    .addComponent(sub_productCodeBar, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel33))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 21, Short.MAX_VALUE)
+                .addComponent(btn_add))
+            .addGroup(jPanel7Layout.createSequentialGroup()
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(btn_remove))
+            .addGroup(jPanel7Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(jPanel7Layout.createSequentialGroup()
+                    .addGap(10, 10, 10)
+                    .addComponent(m_jSearch1)
+                    .addContainerGap(97, Short.MAX_VALUE)))
+        );
+
+        tableSubProduct.setModel(dataModel);
+        jScrollPane3.setViewportView(tableSubProduct);
+
+        javax.swing.GroupLayout jPanel6Layout = new javax.swing.GroupLayout(jPanel6);
+        jPanel6.setLayout(jPanel6Layout);
+        jPanel6Layout.setHorizontalGroup(
+            jPanel6Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel6Layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(jPanel6Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jPanel7, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jScrollPane3))
+                .addContainerGap())
+        );
+        jPanel6Layout.setVerticalGroup(
+            jPanel6Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel6Layout.createSequentialGroup()
+                .addComponent(jPanel7, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(24, 24, 24)
+                .addComponent(jScrollPane3, javax.swing.GroupLayout.DEFAULT_SIZE, 174, Short.MAX_VALUE))
+        );
+
+        jTabbedPane1.addTab(AppLocal.getIntString("label.subproducto"), jPanel6); // NOI18N
+
         add(jTabbedPane1);
         jTabbedPane1.setBounds(10, 0, 560, 370);
     }// </editor-fold>//GEN-END:initComponents
@@ -1400,8 +1640,22 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
         // TODO add your handling code here:
     }//GEN-LAST:event_m_jCodetypeActionPerformed
 
+    private void btn_addActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_addActionPerformed
+        addProductTable();
+    }//GEN-LAST:event_btn_addActionPerformed
+
+    private void m_jSearch1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_m_jSearch1ActionPerformed
+        assignProductByReference();
+    }//GEN-LAST:event_m_jSearch1ActionPerformed
+
+    private void btn_removeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_removeActionPerformed
+        removeProductTable(tableSubProduct.getSelectedRow());
+    }//GEN-LAST:event_btn_removeActionPerformed
+
     
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btn_add;
+    private javax.swing.JButton btn_remove;
     private javax.swing.JButton jButtonHTML;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel10;
@@ -1429,6 +1683,9 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     private javax.swing.JLabel jLabel30;
     private javax.swing.JLabel jLabel31;
     private javax.swing.JLabel jLabel32;
+    private javax.swing.JLabel jLabel33;
+    private javax.swing.JLabel jLabel34;
+    private javax.swing.JLabel jLabel35;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
@@ -1440,8 +1697,11 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     private javax.swing.JPanel jPanel3;
     private javax.swing.JPanel jPanel4;
     private javax.swing.JPanel jPanel5;
+    private javax.swing.JPanel jPanel6;
+    private javax.swing.JPanel jPanel7;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
+    private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JSeparator jSeparator1;
     private javax.swing.JTabbedPane jTabbedPane1;
     private javax.swing.JComboBox m_jAtt;
@@ -1463,6 +1723,7 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     private javax.swing.JCheckBox m_jPrintKB;
     private javax.swing.JTextField m_jRef;
     private javax.swing.JCheckBox m_jScale;
+    private javax.swing.JButton m_jSearch1;
     private javax.swing.JCheckBox m_jSendStatus;
     private javax.swing.JCheckBox m_jService;
     private javax.swing.JTextField m_jStockUnits;
@@ -1474,7 +1735,91 @@ public final class ProductsEditor extends JPanel implements EditorRecord {
     private javax.swing.JTextField m_jmargin;
     private javax.swing.JTextField m_jstockcost;
     private javax.swing.JTextField m_jstockvolume;
+    private javax.swing.JTextField sub_productCodeBar;
+    private javax.swing.JTextField sub_productName;
+    private javax.swing.JTextField sub_productRef;
+    private javax.swing.JTable tableSubProduct;
     private javax.swing.JTextArea txtAttributes;
     // End of variables declaration//GEN-END:variables
     
 }
+
+
+class ProductoAuxiliaryModel extends AbstractTableModel {
+
+    public String[] m_colNames = {"Referncia", "Codigo", "Nombre"};
+
+    public Class[] m_colTypes = {String.class, String.class, String.class};
+
+    Vector dataVector;
+
+    public ProductoAuxiliaryModel(Vector dataVector) {
+        super();
+        this.dataVector = dataVector;
+    }
+
+    public int getColumnCount() {
+        return m_colNames.length;
+    }
+
+    public int getRowCount() {
+        return dataVector.size();
+    }
+
+    public void setValueAt(Object value, int row, int col) {
+        ProductAux data = (ProductAux) (dataVector.elementAt(row));
+
+        switch (col) {
+            case 0:
+                data.setReferencia((String) value);
+                break;
+            case 1:
+                data.setCodeBar((String) value);
+                break;
+            case 2:
+                data.setName((String) value);
+                break;
+        }
+    }
+
+    @Override
+    public String getColumnName(int col) {
+        return m_colNames[col];
+    }
+
+    @Override
+    public Class getColumnClass(int col) {
+        return m_colTypes[col];
+    }
+
+    @Override
+    public Object getValueAt(int row, int col) {
+        ProductAux data = (ProductAux) (dataVector.elementAt(row));
+
+        switch (col) {
+            case 0:
+                return data.getReferencia();
+            case 1:
+                return data.getCodeBar();
+            case 2:
+                return data.getName();
+        }
+
+        return new String();
+    }
+    
+    public void addRow(ProductAux productAux){
+        this.dataVector.addElement(productAux);
+        fireTableDataChanged();
+    }
+    
+    public void removeRow(int row){
+        this.dataVector.remove(row);
+        fireTableDataChanged();
+    }
+    
+    public Object getRow(int row){
+        return dataVector.elementAt(row);
+    }
+    
+}       

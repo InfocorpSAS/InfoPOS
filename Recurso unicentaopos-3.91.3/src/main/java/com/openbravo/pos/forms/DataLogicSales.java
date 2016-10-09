@@ -1301,6 +1301,21 @@ public Object transact() throws BasicException {
                 l.getProductAttSetInstId(), -l.getMultiply(), l.getPrice(),
                 ticket.getUser().getName()                         
             });
+            List<ProductAux> listProductsAux = getProductsAuxiliaryList(l.getProductID());
+            for(ProductAux p: listProductsAux){
+                getStockDiaryInsert().exec(new Object[] {
+                UUID.randomUUID().toString(),
+                ticket.getDate(),
+                l.getMultiply() < 0.0
+                    ? MovementReason.IN_REFUND.getKey()
+                    : MovementReason.OUT_SALE.getKey(),
+                location,
+                p.getProducAux(),
+                l.getProductAttSetInstId(), -l.getMultiply(), l.getPrice(),
+                ticket.getUser().getName()                         
+            });
+            }
+            
         }
        
     }
@@ -1861,7 +1876,7 @@ public Object transact() throws BasicException {
             , new int[] {0}
         );
     }
-
+                              
     /**
      *
      * @return
@@ -1963,4 +1978,63 @@ public Object transact() throws BasicException {
             return c;
         }
     }  
+    
+ 
+     /**
+     *
+     * @param id
+     * @return
+     */
+    public final List<ProductAux> getProductsAuxiliaryList(String idProduct) throws BasicException {
+        try {
+            
+        return new PreparedSentence(s,
+        "SELECT ID" 
+        + ",PRODUCT" 
+	+ ",PRODUCT2" 
+	+ ",(SELECT NAME FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS NAME" 
+	+ ",(SELECT REFERENCE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS REFERENCE" 
+	+ ",(SELECT CODE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS CODE " 
+        + "FROM PRODUCTS_AUX " 
+        + "WHERE PRODUCT = '" + idProduct + "' ;"
+        ,null
+        , ProductAux.getSerializerRead()).list();
+//            return new PreparedSentence(s
+//                , "SELECT "
+//                        + "ID, "
+//                        + "PRODUCT, "
+//                        + "PRODUCT2 FROM PRODUCTS_AUX "
+//                        + "WHERE PRODUCT = '" + idProduct + "' ;"
+//                ,null
+//                , ProductAux.getSerializerRead()).list();
+            
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+            throw  e;
+        }
+    }
+    
+     /**
+      * Metodo que retorna la sentencia para insertar un nuevo producto auxiliar 
+      * @return
+      */
+    public final SentenceExec getProductAuxiliaryAdd() {
+        return new StaticSentence(s
+                , "INSERT INTO PRODUCTS_AUX (ID, PRODUCT, PRODUCT2) VALUES ( ? , ? , ?);"
+                , new SerializerWriteBasic(new Datas[] {
+                    Datas.STRING, 
+                    Datas.STRING, 
+                    Datas.STRING
+                }));
+    }
+
+    /**
+     * Obtiene la sentencia para eliminar el producto auxuliar por el Id
+     * @return SentenceExec
+     */
+    public final SentenceExec getProductAuxiliaryDel() {
+        return new StaticSentence(s
+                , "DELETE FROM PRODUCTS_AUX WHERE ID = ? ;"
+                , SerializerWriteString.INSTANCE);
+    }
 }
