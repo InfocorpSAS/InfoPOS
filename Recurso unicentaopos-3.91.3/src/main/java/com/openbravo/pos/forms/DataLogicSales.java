@@ -1991,10 +1991,10 @@ public Object transact() throws BasicException {
         return new PreparedSentence(s,
         "SELECT ID" 
         + ",PRODUCT" 
-	+ ",PRODUCT2" 
-	+ ",(SELECT NAME FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS NAME" 
-	+ ",(SELECT REFERENCE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS REFERENCE" 
-	+ ",(SELECT CODE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT2) AS CODE " 
+	+ ",PRODUCT_AUX" 
+	+ ",(SELECT NAME FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT_AUX) AS NAME" 
+	+ ",(SELECT REFERENCE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT_AUX) AS REFERENCE" 
+	+ ",(SELECT CODE FROM PRODUCTS WHERE PRODUCTS.ID = PRODUCT_AUX) AS CODE " 
         + "FROM PRODUCTS_AUX " 
         + "WHERE PRODUCT = '" + idProduct + "' ;"
         ,null
@@ -2020,7 +2020,7 @@ public Object transact() throws BasicException {
       */
     public final SentenceExec getProductAuxiliaryAdd() {
         return new StaticSentence(s
-                , "INSERT INTO PRODUCTS_AUX (ID, PRODUCT, PRODUCT2) VALUES ( ? , ? , ?);"
+                , "INSERT INTO PRODUCTS_AUX (ID, PRODUCT, PRODUCT_AUX) VALUES ( ? , ? , ?);"
                 , new SerializerWriteBasic(new Datas[] {
                     Datas.STRING, 
                     Datas.STRING, 

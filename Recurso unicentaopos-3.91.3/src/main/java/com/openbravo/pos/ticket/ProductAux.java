@@ -35,7 +35,7 @@ public class ProductAux implements Serializable{
         this.m_referencia = null;
     }
     
-    public ProductAux(String id, String idProduct, String idProductAux, String codeBar, String name, String referencia) {
+    public ProductAux(String id, String idProduct, String idProductAux, String referencia, String codeBar, String name) {
         this.m_ID = id;
         this.m_Product = idProduct;
         this.m_ProducAux = idProductAux;

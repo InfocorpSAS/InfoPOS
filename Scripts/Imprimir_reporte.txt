@@ -1,0 +1,8 @@
+## Imprimir reporte impresion digital.
+## Ticket.Close
+int resp=JOptionPane.showConfirmDialog(null,"Usas mucho el JOptionPane?");
+if (JOptionPane.OK_OPTION == resp){
+	// Parametro1: ruta del reporte
+	// Parametro2: Bandera que indica si el reporte es externo
+	sales.printReport("/com/openbravo/reports/ticketsample", true);
+}
